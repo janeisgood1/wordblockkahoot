@@ -321,7 +321,10 @@ function onYouTubeIframeAPIReady() {
     height: '1', width: '1', videoId: MUSIC_VIDEO_ID,
     playerVars: { playlist: MUSIC_VIDEO_ID, loop: 1, controls: 0, rel: 0, playsinline: 1 },
     events: {
-      onReady: () => { ytReady = true; if (muted) ytPlayer.mute(); msg('음악 준비 완료'); },
+      onReady: () => {
+        ytReady = true; if (muted) ytPlayer.mute(); msg('음악 준비 완료');
+        if (bgmOn && !bgmTimer) { clearTimeout(bgmWait); playYt(); }   // 음악을 기다리던 중이면 바로 재생
+      },
       onError: e => msg('음악 오류 (코드 ' + e.data + ')')
     }
   });
@@ -385,13 +388,19 @@ function kick(when) {
     o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.3);
   } catch (e) {}
 }
+let bgmWait = null;
+function playYt() {
+  ytPlayer.playVideo();
+  if (muted) ytPlayer.mute(); else ytPlayer.unMute();
+}
 function startBgm() {
   if (bgmOn) return; bgmOn = true;
-  if (ytReady) {
-    ytPlayer.playVideo();
-    if (muted) ytPlayer.mute(); else ytPlayer.unMute();
-    return;
-  }
+  if (ytReady) { playYt(); return; }
+  // 유튜브 음악이 아직 준비 중이면 4초까지 기다리고, 그래도 안 되면 내장 음악을 튼다
+  bgmWait = setTimeout(() => { if (bgmOn && !ytReady) startSynthBgm(); }, 4000);
+}
+function startSynthBgm() {
+  if (bgmTimer) return;
   const STEP_MS = 107;
   const bass = [110, 110, 130.8, 146.8, 110, 110, 164.8, 146.8,
                 98, 98, 123.5, 146.8, 110, 130.8, 146.8, 164.8];
@@ -409,7 +418,15 @@ function startBgm() {
     step++;
   }, STEP_MS);
 }
-function stopBgm() { clearInterval(bgmTimer); bgmOn = false; if (ytReady) ytPlayer.stopVideo(); }
+function stopBgm() { clearTimeout(bgmWait); clearInterval(bgmTimer); bgmTimer = null; bgmOn = false; if (ytReady) ytPlayer.stopVideo(); }
+// 화면을 처음 누르는 순간부터 배경음악 시작 (브라우저는 누르기 전에는 소리를 막아요)
+let bgmAuto = false;
+function startBgmOnFirstTouch() {
+  if (bgmAuto || ended) return;
+  bgmAuto = true;
+  startBgm();
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(evt => document.addEventListener(evt, startBgmOnFirstTouch, { passive: true }));
 
 $('muteBtn').addEventListener('click', () => {
   muted = !muted;
