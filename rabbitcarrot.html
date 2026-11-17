@@ -216,7 +216,7 @@ function speak(text) {
   if (!soundOn || !text || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
+    const u = new SpeechSynthesisUtterance(text.replace(/[~～]/g, ''));   // "물결표"라고 읽지 않게
     u.lang = 'ko-KR'; u.rate = 1.05; u.pitch = 2;   // 최대한 높고 귀엽게
     if (babyVoice) u.voice = babyVoice;
     u.onstart = () => duck(true);
@@ -321,7 +321,7 @@ function startLevel(i) {
   prog = 0; strokes = []; cur = null; activeId = null; fails = 0; nextTick = 0.1; particles = []; shake = 0;
   $('#menu').classList.add('hidden'); $('#win').classList.add('hidden');
   $('#title').textContent = `${i + 1}단계 · ${LEVELS[i].name}`;
-  say('나를 펜으로 콕! 누르고 길을 따라와 줘~ 🐰', '나 배고파요~ 나를 콕 누르고, 당근까지 데려다 줘!');
+  say('나를 펜으로 콕! 누르고 길을 따라와 줘~ 🐰', '나 배고파! 나를 당근에게 데려다줘!');
 }
 function showMenu() {
   state = 'menu'; activeId = null; cur = null;
