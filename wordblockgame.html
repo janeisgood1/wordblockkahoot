@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단어 블럭 채점</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#2b2140;--card:#fff;--accent:#ff5d8f;--accent2:#7b5cff;--bad:#e5484d;--tile:#fff3d1;--tile-edge:#e0b860}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Jua","Malgun Gothic",sans-serif;color:var(--ink);min-height:100vh;
+  background:radial-gradient(circle at 20% 10%,#ffe3f0 0,transparent 40%),radial-gradient(circle at 90% 80%,#dfe6ff 0,transparent 45%),linear-gradient(160deg,#fff7fb,#f3f0ff)}
+.hidden{display:none !important}
+button{font-family:inherit;font-size:18px;padding:12px 18px;border:0;border-radius:14px;background:linear-gradient(180deg,var(--accent2),#5a3cd6);color:#fff;cursor:pointer;box-shadow:0 4px 0 #3e2aa0;transition:transform .08s}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #3e2aa0}
+button.ghost{background:#fff;color:var(--ink);box-shadow:0 4px 0 #cfc4f5}
+button.small{font-size:15px;padding:8px 12px;border-radius:10px;box-shadow:none}
+button.wide{width:100%}
+button:disabled{opacity:.5;cursor:default}
+input{font-family:inherit;font-size:18px;padding:10px 12px;border:3px solid #e4dcff;border-radius:12px;width:100%;background:#fff;color:var(--ink)}
+label{display:block;font-size:16px;margin:12px 0 6px}
+.card{background:var(--card);border-radius:22px;padding:20px;box-shadow:0 10px 30px rgba(123,92,255,.15)}
+.center{display:flex;justify-content:center;align-items:flex-start;padding:24px 14px}
+.narrow{width:min(94vw,480px)}
+h2{margin:0 0 8px;font-size:24px}
+h3{margin:14px 0 6px;font-size:19px}
+.muted{opacity:.6;font-size:15px}
+.note{font-size:15px;line-height:1.6;background:#fff6dc;border-radius:12px;padding:10px 14px;margin-top:12px;text-align:left}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;background:linear-gradient(90deg,#ff8fb8,#a993ff);color:#fff}
+.top h1{color:#fff;font-size:21px;margin:0;flex:1}
+.clock{font-size:30px;background:#fff;color:var(--ink);border-radius:14px;padding:2px 14px;font-variant-numeric:tabular-nums;box-shadow:0 4px 0 #d6cdf7}
+.clock.warn{color:var(--bad)}
+.gameCol{width:min(96vw,560px);margin:0 auto;padding:12px 0 30px;display:flex;flex-direction:column;gap:10px}
+.gridWrap{background:linear-gradient(180deg,#b57a3e,#8b5e2b);padding:8px;border-radius:20px;box-shadow:inset 0 3px 8px rgba(0,0,0,.3)}
+.grid{display:grid;gap:4px}
+.cell{aspect-ratio:1/1;min-width:0;background:#fffdf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:clamp(11px,2.6vw,22px);cursor:pointer;user-select:none;-webkit-user-select:none;box-shadow:inset 0 -3px 0 #eadfc0}
+.cell.has{background:linear-gradient(180deg,var(--tile),#fbe3a2);box-shadow:0 3px 0 var(--tile-edge);animation:pop .25s}
+.cell.sel{outline:4px solid var(--accent);background:#ffe6f0}
+@keyframes pop{0%{transform:scale(.6)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+.sizeLabel{font-size:13px;text-align:right;opacity:.7;margin-top:-4px}
+.palette{display:grid;grid-template-columns:repeat(13,1fr);gap:4px;background:rgba(255,255,255,.6);padding:8px;border-radius:16px}
+.palette button{padding:6px 0;font-size:16px;border-radius:8px;box-shadow:0 3px 0 #3e2aa0}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>button{flex:1}
+.overlay{position:fixed;inset:0;background:rgba(43,33,64,.6);display:flex;align-items:center;justify-content:center;z-index:20;padding:12px}
+.modal{background:#fff;border-radius:24px;padding:22px;width:min(96vw,680px);max-height:92vh;overflow:auto;text-align:center;animation:pop .35s}
+.tag{display:inline-block;padding:2px 9px;margin:2px;border-radius:999px;font-size:15px}
+.tag.a{background:#ffe0ea;color:#a0154e}
+.tag.o{background:#e6f0ff;color:#1c4d8a}
+.big{font-size:52px;color:var(--accent);margin:8px 0}
+.audioWarn{background:#ffe0e0;color:#8a1c1c;border-radius:12px;padding:8px 12px;font-size:15px;margin:8px auto;max-width:560px}
+</style>
+</head>
+<body>
+
+<div id="ytWrap" style="position:fixed;right:8px;bottom:8px;width:240px;height:135px;z-index:50;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.3)"><div id="ytPlayer"></div></div>
+<script src="https://www.youtube.com/iframe_api"></script>
+
+<div class="top">
+  <h1 id="title">🔤 단어 블럭</h1>
+  <div class="clock hidden" id="clock">30:00</div>
+  <div id="status" style="font-size:15px;font-weight:700"></div>
+  <button class="ghost small" id="muteBtn">🔊 소리 켜짐</button>
+</div>
+
+<!-- 1) 설정 -->
+<section id="screenSetup" class="center">
+  <div class="card narrow">
+    <h2>📝 모둠 설정</h2>
+    <label for="className">반 이름</label>
+    <input id="className" placeholder="예: 3반">
+    <label for="teamName">모둠 이름</label>
+    <input id="teamName" placeholder="예: 1모둠">
+    <button class="wide" id="btnToGame" style="margin-top:16px">다음 → 게임 화면</button>
+  </div>
+</section>
+
+<!-- 2) 게임 -->
+<section id="screenGame" class="hidden">
+  <div class="gameCol">
+    <div class="row" style="align-items:center">
+      <button class="ghost small" id="btnBack">← 설정</button>
+      <b id="gameTeam" style="flex:1;text-align:center;font-size:18px"></b>
+    </div>
+    <div id="audioWarn" class="audioWarn hidden">🔇 소리가 막혀 있어요. 화면을 한 번 누른 뒤 <b>🔊 소리 켜짐</b> 버튼을 눌러 주세요.</div>
+    <div class="gridWrap"><div class="grid" id="grid"></div></div>
+    <div class="sizeLabel" id="sizeLabel"></div>
+    <div class="palette" id="palette"></div>
+    <div class="row">
+      <button id="btnStart">▶ 시작 (30분)</button>
+      <button class="ghost" id="btnEnd">라운드 종료 · 채점</button>
+    </div>
+    <div class="row">
+      <button class="ghost small" id="btnDel">지우기</button>
+      <button class="ghost small" id="btnAllClear">전체 비우기</button>
+    </div>
+    <p class="muted" style="font-size:14px;margin:0">칸을 누르고 알파벳을 누르세요. 가로는 왼→오, 세로는 위→아래로 읽어요.</p>
+  </div>
+</section>
+
+<!-- 공통 창 (최종 점수) -->
+<div class="overlay hidden" id="panel">
+  <div class="modal">
+    <h2 id="panelTitle"></h2>
+    <div id="panelBody"></div>
+    <div class="row" style="margin-top:16px;justify-content:center">
+      <button class="ghost" id="btnPanelRetry">다시 채점</button>
+      <button id="btnPanelClose">확인</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const START = 10, MAX = 20, DURATION = 1800;
+const CHECKPOINT_SEC = [600, 1200];
+const DICT_KEY = 'wbg_dict_v3';
+
+// 동물 단어 목록 (단수형 명사). 자유롭게 추가·삭제하세요.
+const ANIMAL_LIST = `cat dog lion tiger bear wolf fox deer horse cow pig sheep goat duck goose hen chicken rabbit mouse rat hamster squirrel monkey ape gorilla zebra giraffe elephant rhino hippo camel llama kangaroo koala panda sloth otter seal whale dolphin shark fish eel crab octopus squid shrimp lobster starfish jellyfish frog toad snake lizard turtle tortoise crocodile alligator gecko iguana eagle hawk owl parrot penguin ostrich peacock swan crow raven pigeon dove sparrow robin bat bee wasp ant fly moth butterfly beetle spider scorpion worm snail cheetah leopard jaguar lynx cougar bison buffalo moose yak donkey mule pony puppy kitten calf lamb piglet cricket firefly ladybug dragonfly mosquito hare badger beaver hedgehog mole raccoon skunk weasel ferret walrus manatee stingray flamingo pelican vulture condor emu kiwi toucan canary goldfish mammal reptile insect bird`;
+const ANIMALS = new Set(ANIMAL_LIST.split(/\s+/).filter(Boolean));
+
+const CFG = { className: '', teamName: '모둠' };
+let rows = START, cols = START, cells = mk(START, START), sel = null;
+let started = false, ended = false, startAt = 0, timerId = null;
+let snaps = [], snapped = {};
+let muted = false, AC = null, bgmTimer = null, bgmOn = false;
+const MUSIC_VIDEO_ID = 'IL2EwoTxcws';          // 배경음악 유튜브 영상 번호
+let ytPlayer = null, ytReady = false;
+function onYouTubeIframeAPIReady() {
+  ytPlayer = new YT.Player('ytPlayer', {
+    height: '135', width: '240', videoId: MUSIC_VIDEO_ID,
+    playerVars: { playlist: MUSIC_VIDEO_ID, loop: 1, controls: 0, rel: 0, playsinline: 1 },
+    events: {
+      onReady: () => { ytReady = true; if (muted) ytPlayer.mute(); msg('음악 준비 완료'); },
+      onError: e => msg('음악 오류 (코드 ' + e.data + ') — 영상 화면을 확인하세요')
+    }
+  });
+}
+let lastFinal = null;
+let dictCache = JSON.parse(localStorage.getItem(DICT_KEY) || '{}');
+
+function mk(r, c) { return Array.from({ length: r }, () => Array(c).fill(null)); }
+function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+function msg(t) { $('status').textContent = t; }
+function showView(id) { ['screenSetup', 'screenGame'].forEach(v => $(v).classList.toggle('hidden', v !== id)); window.scrollTo(0, 0); }
+
+/* ---------- 소리 (브라우저 자동재생 정책 대응) ---------- */
+function ctx() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function audioReady() { return AC && AC.state === 'running'; }
+function unlockAudio() {
+  try {
+    ctx();
+    AC.resume().then(() => { $('audioWarn').classList.add('hidden'); }).catch(() => {});
+    if (AC.state === 'running') $('audioWarn').classList.add('hidden');
+  } catch (e) { $('audioWarn').classList.remove('hidden'); }
+}
+// 화면을 처음 누르는 순간 소리를 켠다 (설정, 시작 등 어느 버튼이든)
+['pointerdown', 'keydown', 'touchstart'].forEach(evt => document.addEventListener(evt, unlockAudio, { passive: true }));
+
+function tone(freq, dur = 0.15, type = 'sine', vol = 0.2, when = 0) {
+  if (muted) return;
+  try {
+    const a = ctx();
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + when;
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.min(0.9, vol * 1.6), t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.05);
+  } catch (e) {}
+}
+function sfxTap(ch) { tone(480 + (ch.charCodeAt(0) - 65) * 14, 0.09, 'triangle', 0.25); }
+function sfxPlace() { tone(660, 0.06, 'square', 0.08); tone(990, 0.08, 'triangle', 0.15, 0.04); }
+function sfxClear() { tone(300, 0.08, 'triangle', 0.15); }
+function sfxStart() { [523, 659, 784].forEach((f, i) => tone(f, 0.2, 'sine', 0.25, i * 0.1)); }
+function sfxCheckpoint() { [784, 988, 1175].forEach((f, i) => tone(f, 0.25, 'triangle', 0.25, i * 0.15)); }
+function sfxFanfare(big) {
+  const notes = big ? [523, 659, 784, 1046, 784, 1046, 1318, 1046] : [523, 659, 784, 1046];
+  notes.forEach((f, i) => tone(f, 0.28, 'triangle', 0.22, i * 0.16));
+  if (big) [262, 330, 392, 523].forEach((f, i) => tone(f, 0.5, 'sine', 0.2, 1.4 + i * 0.25));
+}
+// 킥(쿵), 하이햇(칙), 베이스, 아르페지오 리드가 16분음표 단위로 도는 빠른 배경음악 (약 140 BPM)
+function kick(when) {
+  if (muted) return;
+  try {
+    const a = ctx(), t = a.currentTime + when;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    g.gain.setValueAtTime(0.7, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.3);
+  } catch (e) {}
+}
+function startBgm() {
+  if (bgmOn) return; bgmOn = true;
+  if (ytReady) {
+    ytPlayer.playVideo();
+    if (muted) ytPlayer.mute(); else ytPlayer.unMute();
+    return;
+  }
+  const STEP_MS = 107;                                   // 16분음표 한 칸
+  const bass = [110, 110, 130.8, 146.8, 110, 110, 164.8, 146.8,
+                98, 98, 123.5, 146.8, 110, 130.8, 146.8, 164.8];   // 단조 리프
+  const lead = [440, 523.3, 659.3, 880, 659.3, 523.3, 659.3, 783.99]; // 아르페지오
+  let step = 0;
+  bgmTimer = setInterval(() => {
+    if (muted) return;
+    const s = step % 16;
+    if (s % 4 === 0) kick(0);                             // 4분음표마다 킥
+    if (s === 10) kick(0);                                // 싱코페이션 킥
+    if (s % 4 === 2) tone(7500, 0.03, 'square', 0.05);    // 하이햇
+    tone(bass[s], 0.09, 'sawtooth', 0.09);                // 베이스
+    if (s % 2 === 0) tone(lead[(s / 2) % lead.length], 0.1, 'square', 0.05); // 리드
+    if (s === 0) tone(1046.5, 0.12, 'triangle', 0.06);    // 마디 시작 강조음
+    step++;
+  }, STEP_MS);
+}
+function stopBgm() { clearInterval(bgmTimer); bgmOn = false; if (ytReady) ytPlayer.stopVideo(); }
+
+$('muteBtn').addEventListener('click', () => {
+  muted = !muted;
+  $('muteBtn').textContent = muted ? '🔇 소리 꺼짐' : '🔊 소리 켜짐';
+  if (ytReady) { if (muted) ytPlayer.mute(); else ytPlayer.unMute(); }
+  if (!muted) {
+    unlockAudio();
+    setTimeout(() => { if (!muted) sfxCheckpoint(); }, 200);
+  }
+});
+
+/* ---------- 설정 ---------- */
+$('btnToGame').addEventListener('click', () => {
+  unlockAudio();
+  CFG.className = $('className').value.trim();
+  CFG.teamName = $('teamName').value.trim() || '모둠';
+  const label = `${CFG.className ? CFG.className + ' · ' : ''}${CFG.teamName}`;
+  $('title').textContent = '🔤 ' + label;
+  $('gameTeam').textContent = label;
+  showView('screenGame');
+  renderGrid();
+});
+$('btnBack').addEventListener('click', () => {
+  if (started && !ended) { alert('라운드 진행 중에는 설정으로 돌아갈 수 없어요.'); return; }
+  showView('screenSetup');
+});
+
+/* ---------- 게임 보드 ---------- */
+function renderGrid() {
+  const g = $('grid');
+  g.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  g.innerHTML = '';
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const cell = cells[r][c];
+    const d = el('div', cell ? cell.ch : '', 'cell' + (cell ? ' has' : '') + (sel && sel.r === r && sel.c === c ? ' sel' : ''));
+    d.addEventListener('click', () => { if (!ended) { sel = { r, c }; renderGrid(); } });
+    g.appendChild(d);
+  }
+  $('sizeLabel').textContent = `${cols} × ${rows} 칸 (최대 ${MAX} × ${MAX})`;
+}
+
+function setLetter(ch) {
+  if (!started) { msg('먼저 ▶ 시작 버튼을 눌러 주세요.'); return; }
+  if (ended) return;
+  if (!sel) { msg('먼저 칸을 눌러 주세요.'); return; }
+  const { r, c } = sel;
+  sfxTap(ch);
+  cells[r][c] = { ch };
+  if (c >= cols - 1 && cols < MAX) { cells.forEach(row => row.push(null)); cols++; }
+  if (r >= rows - 1 && rows < MAX) { cells.push(Array(cols).fill(null)); rows++; }
+  if (c + 1 < cols) sel = { r, c: c + 1 };
+  sfxPlace();
+  renderGrid();
+}
+function clearSelected() {
+  if (!started || ended || !sel) return;
+  cells[sel.r][sel.c] = null; sfxClear(); renderGrid();
+}
+$('btnDel').addEventListener('click', clearSelected);
+$('btnAllClear').addEventListener('click', () => {
+  if (!started || ended) return;
+  if (!confirm('보드의 모든 글자를 지울까요?')) return;
+  cells = mk(rows, cols); sfxClear(); renderGrid();
+});
+(function buildPalette() {
+  const p = $('palette');
+  for (let i = 0; i < 26; i++) {
+    const ch = String.fromCharCode(65 + i);
+    const b = el('button', ch);
+    b.addEventListener('click', () => setLetter(ch));
+    p.appendChild(b);
+  }
+})();
+window.addEventListener('keydown', e => {
+  if (!started || ended || $('screenGame').classList.contains('hidden')) return;
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  if (/^[a-zA-Z]$/.test(e.key)) setLetter(e.key.toUpperCase());
+  else if (e.key === 'Backspace') clearSelected();
+  else if (sel && e.key.startsWith('Arrow')) {
+    let nr = sel.r, nc = sel.c;
+    if (e.key === 'ArrowLeft') nc--; if (e.key === 'ArrowRight') nc++;
+    if (e.key === 'ArrowUp') nr--; if (e.key === 'ArrowDown') nr++;
+    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) { sel = { r: nr, c: nc }; renderGrid(); }
+    e.preventDefault();
+  }
+});
+
+/* ---------- 라운드 진행 ---------- */
+function renderClock(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  $('clock').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  $('clock').classList.toggle('warn', sec <= 600);
+}
+$('btnStart').addEventListener('click', () => {
+  if (started) return;
+  unlockAudio();
+  started = true; ended = false;
+  startAt = Date.now(); snaps = []; snapped = {};
+  $('clock').classList.remove('hidden');
+  $('btnStart').disabled = true;
+  msg('진행 중');
+  renderClock(DURATION);
+  sfxStart();
+  startBgm();
+  clearInterval(timerId);
+  timerId = setInterval(tick, 500);
+});
+function tick() {
+  if (!started || ended) return;
+  const elapsed = (Date.now() - startAt) / 1000;
+  renderClock(Math.max(0, Math.ceil(DURATION - elapsed)));
+  CHECKPOINT_SEC.forEach(sec => {
+    const label = (sec / 60) + '분';
+    if (elapsed >= sec && !snapped[label]) {
+      snapped[label] = true;
+      snapshot(label);
+      sfxCheckpoint();
+      msg(`⏰ ${label} 경과 — 보드를 저장했어요`);
+    }
+  });
+  if (elapsed >= DURATION) finish();
+}
+function snapshot(label) {
+  const list = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (cells[r][c]) list.push({ r, c, ch: cells[r][c].ch });
+  }
+  snaps.push({ label, at: new Date().toISOString(), rows, cols, cells: list });
+}
+$('btnEnd').addEventListener('click', () => { if (started && !ended) finish(); });
+
+async function finish() {
+  if (ended) return;
+  ended = true;
+  clearInterval(timerId);
+  stopBgm();
+  renderClock(0);
+  sel = null; renderGrid();
+  snapshot('최종');
+  sfxFanfare(true);
+  saveFile();            // 백업용 기록 파일 (화면에는 보이지 않음)
+  msg('채점 중...');
+  lastFinal = await scoreSnapshot(snaps.find(s => s.label === '최종'));
+  msg('라운드 종료');
+  showFinalPanel();
+}
+
+function showFinalPanel() {
+  const r = lastFinal;
+  const body = el('div');
+  body.appendChild(el('div', `${CFG.className ? CFG.className + ' · ' : ''}${CFG.teamName}`, 'muted'));
+  body.appendChild(el('div', `${r.total}점`, 'big'));
+  if (r.networkFail) {
+    body.appendChild(el('div', '인터넷에 연결되지 않아 채점하지 못했어요. 인터넷이 연결된 상태에서 "다시 채점"을 눌러 주세요.', 'note'));
+  }
+  body.appendChild(wordLines('동물 단어 (+5점)', r.animals, 'a'));
+  body.appendChild(wordLines('기타 단어 (+1점)', r.others, 'o'));
+  if (r.rejected.length) body.appendChild(el('div', '인정되지 않은 단어 (0점): ' + r.rejected.map(x => `${x.word}(${x.reason})`).join(', '), 'note'));
+  if (r.unverified.length) body.appendChild(el('div', '판정하지 못한 단어: ' + r.unverified.join(', '), 'note'));
+  $('panelTitle').textContent = '🏁 라운드 종료 — 최종 점수';
+  const b = $('panelBody'); b.innerHTML = ''; b.appendChild(body);
+  $('panel').classList.remove('hidden');
+}
+function wordLines(title, list, kind) {
+  const box = el('div');
+  box.appendChild(el('h3', title));
+  if (!list.length) box.appendChild(el('span', '없음', 'muted'));
+  list.forEach(w => box.appendChild(el('span', w, 'tag ' + kind)));
+  return box;
+}
+
+function saveFile() {
+  const safe = s => (s || '').replace(/[\\/:*?"<>|\s]+/g, '_');
+  const obj = { version: 3, className: CFG.className, teamName: CFG.teamName, startedAt: new Date(startAt).toISOString(), endedAt: new Date().toISOString(), snapshots: snaps };
+  const name = `${safe(CFG.className) || '반'}_${safe(CFG.teamName)}_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+$('btnPanelRetry').addEventListener('click', async () => {
+  const fin = snaps.find(s => s.label === '최종');
+  if (!fin) return;
+  msg('채점 중...');
+  lastFinal = await scoreSnapshot(fin);
+  msg('라운드 종료');
+  showFinalPanel();
+});
+$('btnPanelClose').addEventListener('click', () => $('panel').classList.add('hidden'));
+
+/* ---------- 단어 판정 (인터넷 사전, 결과는 기기에 저장) ---------- */
+const INFLECTED = /\b(plural|past tense|past participle|present participle|third-person singular|comparative|superlative|simple past)\b.*\bof\b/i;
+const ABBR = /abbreviation|short for|initialism|acronym/i;
+
+async function checkWord(word) {
+  const key = word.toLowerCase();
+  if (dictCache[key]) return dictCache[key];
+  let result;
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(key)}`);
+    if (res.status === 404) result = { ok: false, reason: '사전에 없는 단어' };
+    else if (!res.ok) throw new Error('http ' + res.status);
+    else {
+      const data = await res.json();
+      const entries = (Array.isArray(data) ? data : []).filter(e => e.word && e.word.toLowerCase() === key);
+      if (!entries.length) result = { ok: false, reason: '변형형 (원형만 인정)' };
+      else if (entries.every(e => e.word[0] !== e.word[0].toLowerCase())) result = { ok: false, reason: '고유명사' };
+      else {
+        const defs = []; let abbr = false;
+        for (const e of entries) for (const m of (e.meanings || [])) {
+          if (/abbreviation/i.test(m.partOfSpeech || '')) abbr = true;
+          for (const d of (m.definitions || [])) defs.push(d.definition || '');
+        }
+        if (abbr || defs.some(d => ABBR.test(d) && defs.length === 1)) result = { ok: false, reason: '줄임말' };
+        else if (defs.length && defs.every(d => INFLECTED.test(d))) result = { ok: false, reason: '변형형 (원형만 인정)' };
+        else if (!defs.length) result = { ok: false, reason: '뜻이 없음' };
+        else result = { ok: true };
+      }
+    }
+  } catch (err) {
+    return { ok: null, reason: '인터넷 연결 필요' };   // 저장하지 않으므로 다음에 다시 확인
+  }
+  dictCache[key] = result;
+  localStorage.setItem(DICT_KEY, JSON.stringify(dictCache));
+  return result;
+}
+
+function findWords(grid, nRows, nCols) {
+  const lines = [];
+  for (let r = 0; r < nRows; r++) { const l = []; for (let c = 0; c < nCols; c++) l.push([r, c]); lines.push(l); }
+  for (let c = 0; c < nCols; c++) { const l = []; for (let r = 0; r < nRows; r++) l.push([r, c]); lines.push(l); }
+  const out = [];
+  for (const line of lines) {
+    let cur = [];
+    for (const pos of [...line, null]) {
+      if (pos && grid[pos[0]][pos[1]]) cur.push(pos);
+      else {
+        if (cur.length >= 2) out.push({ word: cur.map(p => grid[p[0]][p[1]].ch).join('') });
+        cur = [];
+      }
+    }
+  }
+  return out;
+}
+
+// 한 시점의 보드를 채점 (모둠 단위)
+async function scoreSnapshot(snap) {
+  const res = { total: 0, animals: [], others: [], rejected: [], unverified: [], networkFail: false };
+  if (!snap) return res;
+  const grid = Array.from({ length: snap.rows }, () => Array(snap.cols).fill(null));
+  snap.cells.forEach(c => { grid[c.r][c.c] = { ch: c.ch }; });
+  const uniq = [...new Set(findWords(grid, snap.rows, snap.cols).map(w => w.word))];
+  for (const word of uniq) {
+    const v = await checkWord(word);
+    if (v.ok === true) {
+      if (ANIMALS.has(word.toLowerCase())) { res.animals.push(word); res.total += 5; }
+      else { res.others.push(word); res.total += 1; }
+    } else if (v.ok === null) {
+      res.unverified.push(word); res.networkFail = true;
+    } else {
+      res.rejected.push({ word, reason: v.reason });
+    }
+  }
+  return res;
+}
+
+/* ---------- 시작 ---------- */
+showView('screenSetup');
+</script>
+</body>
+</html>
